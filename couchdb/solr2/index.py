@@ -8,6 +8,7 @@
 # for details.
 
 import couchdb, logging, socket, sys, os
+import amqplib.client_0_8 as amqp
 from optparse import OptionParser
 
 try:
@@ -16,6 +17,13 @@ except ImportError:
     import json
 
 TYPE_ATTR = 'type'
+
+# TODO: Throw in a config file
+AMQP_HOST = '127.0.0.1'
+AMQP_USER = 'couchdb-solr2-index'
+AMQP_PASS = 'couchdb'
+AMQP_KEY = 'x' # Routing key
+AMQP_REALM = '/data'
 
 log = logging.getLogger(__name__)
 
@@ -31,7 +39,19 @@ class UpdateHandler(object):
         """Send updates out on message queue.
 
         """
-        pass
+        log.debug('Updates: ' + updates)
+        msg = amqp.Message(updates, content_type='application/json')
+        self.channel.basic_publish(msg, AMQP_KEY)
+
+    def _set_up_amqp(self):
+        self.conn = amqp.Connection(AMQP_HOST, AMQP_USER, AMQP_PASS)
+        self.channel = self.conn.channel()
+        self.channel.access_request(AMQP_REALM, write=True, active=True)
+        self.channel.exchange_declare(AMQP_KEY, 'fanout')
+
+    def _tear_down_amqp(self):
+        self.channel.close()
+        self.conn.close()
 
     def _normalize(self, path, obj):
         if obj is None:
@@ -77,7 +97,8 @@ class UpdateHandler(object):
         for field in fields:
             if doc.has_key(field):
                 self._normalize(field, doc[field])
-        self.doc_updates.append({'type' : doc[TYPE_ATTR]})
+        self.doc_updates.extend([{'type' : doc[TYPE_ATTR]},
+                                 {'_id' : doc_id}])
         updates = json.dumps(self.doc_updates)
         return updates
 
@@ -111,9 +132,11 @@ class UpdateHandler(object):
             log.exception("Problem with sequence id file")
             return
 
-        updates = []
+        self._set_up_amqp()
+
         updated_docs, len_docs = self._next_in_sequence(db, seq_id)
         while len_docs > 0:
+            updates = []
             for doc in updated_docs:
                 if doc.value.get('deleted', False):
                     self._delete_doc(db, doc.id)
@@ -121,15 +144,18 @@ class UpdateHandler(object):
                     doc_updates = self._index_doc(db, doc.id)
                     if doc_updates is not None:
                         updates.append(doc_updates)
+            updates = json.dumps(updates)
+            self._announce_updates(updates)
+
             seq_id = updated_docs.rows[len_docs - 1].key
             updated_docs, len_docs = self._next_in_sequence(db, seq_id)
+
+        self._tear_down_amqp()
 
         fp = file(self.seqid_file, 'w')
         json.dump(seq_id, fp)
         fp.close()
 
-        updates = json.dumps(updates)
-        self._announce_updates(updates)
     
 def updates():
     line = sys.stdin.readline()
