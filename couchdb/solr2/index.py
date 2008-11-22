@@ -91,7 +91,7 @@ class UpdateHandler(object):
         if doc is None:
             return
         fields = doc.get('solr_fields')
-        if fields is None:
+        if not fields:
             return
         updates = []
         for field in fields:
@@ -99,10 +99,6 @@ class UpdateHandler(object):
                 self._normalize(updates, field, doc[field])
         updates.extend([{'type' : doc[TYPE_ATTR]}, {'_id' : doc_id}])
         return updates
-
-    def _delete_doc(self, db, doc_id):
-        log.debug("Deleting document %s" % doc_id)
-
 
     def _next_in_sequence(self, db, seq_id):
         log.debug("Sequence id: %d" % seq_id)
@@ -134,18 +130,27 @@ class UpdateHandler(object):
 
         updated_docs, len_docs = self._next_in_sequence(db, seq_id)
         while len_docs > 0:
-            updates = []
-            for doc in updated_docs:
-                if doc.value.get('deleted', False):
-                    self._delete_doc(db, doc.id)
-                else:
-                    doc_updates = self._index_doc(db, doc.id)
-                    if doc_updates is not None:
-                        updates.append(doc_updates)
-            updates = json.dumps(updates)
-            self._announce_updates(updates)
-
             seq_id = updated_docs.rows[len_docs - 1].key
+
+            deleted_docs = [doc.id for doc in updated_docs
+                            if doc.value.get('deleted', False)]
+            updated_docs = [doc.id for doc in updated_docs
+                            if not doc.value.get('deleted', False)]
+
+            if deleted_docs:
+                deletes = {'type' : 'deleted', 'data' : deleted_docs}
+                self._announce_updates(json.dumps(deletes))
+
+            if updated_docs:
+                updates = []
+                for doc_id in updated_docs:
+                    doc_updates = self._index_doc(db, doc_id)
+                    if doc_updates is not None:
+                        doc_updates.append({'_db' : db_name})
+                        updates.append(doc_updates)
+                updates = {'type' : 'updated', 'data' : updates}
+                self._announce_updates(json.dumps(updates))
+
             updated_docs, len_docs = self._next_in_sequence(db, seq_id)
 
         self._tear_down_amqp()

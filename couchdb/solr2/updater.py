@@ -9,7 +9,7 @@
 import logging, threadpool, time
 import amqplib.client_0_8 as amqp
 from daemon import DaemonMixin
-from solr import SolrConnection
+from solr import SolrConnection, SolrException
 
 try:
     import simplejson as json
@@ -28,7 +28,8 @@ __all__ = ['Updater']
 
 class Updater(DaemonMixin):
 
-    def __init__(self, amqp, workers=10, sleep_time=0.05):
+    def __init__(self, solr_uri, amqp, workers=10, sleep_time=0.05):
+        self.solr_uri = solr_uri
         self.amqp = amqp
         self.pool = threadpool.ThreadPool(workers)
         self.sleep_time = sleep_time
@@ -40,22 +41,52 @@ class Updater(DaemonMixin):
         field.text = value
 
     def _send_update(self, *args, **kwargs):
-        """
-["[{\"address\": \"Puerto Rico\
-"}, {\"AddressDetails/CountryNameCode\": \"PR\"}, {\"type\": \"Location\"}, {\"_
-id\": \"15308041f5d1dbe4ab3e41d14d8e5032\"}]"]
+        """Send an update message to Solr.
+
+        Solr commits are made only after deletion.
+{
+  'type': 'updated',
+  'data' : [
+    [{"address": "Puerto Rico"}, {"AddressDetails/CountryNameCode": "PR"}, {"type": "Location"}, {"_id": "15308041f5d1dbe4ab3e41d14d8e5032"}]
+  ]
+}
+{
+  'type' : 'deleted',
+  'data' : [
+    '382930',
+  ] 
+}
         """
         msg = args[0]
         updates = json.loads(msg.body)
-        add = ET.Element('add')
-        for update in updates:
-            doc = ET.SubElement(add, 'doc')
-            for fields in update:
-                for k, v in fields.items(): # There should only be one pair
-                    Updater.xml_field(doc, k, v)
-        #solr = SolrConnection(self, solr_uri)
-        #solr.doUpdateXML(ET.tostring(add))
-        log.debug("Sending update to Solr: " + ET.tostring(add))
+        solr = SolrConnection(self.solr_uri)
+        if updates['type'] == 'updated':
+            add = ET.Element('add')
+            for update in updates['data']:
+                doc = ET.SubElement(add, 'doc')
+                for fields in update:
+                    # There should only be one pair
+                    for k, v in fields.items():
+                        Updater.xml_field(doc, solr.escapeKey(k),
+                                          solr.escapeVal(v))
+            log.debug("Sending update to Solr: " + ET.tostring(add))
+            try:
+                resp = solr.doUpdateXML(ET.tostring(add))
+                log.debug("Solr response: " + resp)
+            except SolrException:
+                log.exception("Exception when contacting Solr")
+                return
+        elif updates['type'] == 'deleted':
+            for id in updates['data']:
+                log.debug("Deleting %s" % id)
+            try:
+                solr.delete(id)
+                solr.commit()
+            except SolrException:
+                log.exception("Exception when contacting Solr")
+                return
+        else:
+            log.warning("Unrecognized update type: '%s'" % updates['type'])
 
     def _on_receive(self, msg):
         """Called when an update request is retrieved from AMQP queue."""

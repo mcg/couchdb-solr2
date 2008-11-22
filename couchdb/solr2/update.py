@@ -31,6 +31,9 @@ def parse_opts():
     parser.add_option('-n', '--no-daemonize', dest='no_daemonize',
                       action='store_true', default=False,
                       help="Don't daemonize")
+    parser.add_option('-s', '--solr', dest='solr_uri',
+                      metavar='URI', default='127.0.0.1:8080',
+                      help='Solr URI')
     return parser.parse_args()
 
 
@@ -44,7 +47,7 @@ def main():
         'amqp_realm' : AMQP_REALM,
         'amqp_queue' : AMQP_QUEUE
     }
-    updater = Updater(amqp)
+    updater = Updater(opts.solr_uri, amqp)
     if opts.no_daemonize is False:
         updater.daemonize(opts.pid_file)
 
