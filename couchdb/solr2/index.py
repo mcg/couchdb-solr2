@@ -53,33 +53,33 @@ class UpdateHandler(object):
         self.channel.close()
         self.conn.close()
 
-    def _normalize(self, path, obj):
+    def _normalize(self, updates, path, obj):
         if obj is None:
             log.warning("Object is None")
         elif isinstance(obj, str):
-            self.doc_updates.append({path : obj})
+            updates.append({path : obj})
         elif isinstance(obj, list):
-            self._normalize_list(path, obj)
+            self._normalize_list(updates, path, obj)
         elif isinstance(obj, dict):
-            self._normalize_dict(path, obj)
+            self._normalize_dict(updates, path, obj)
         else:
             log.warning("No type matched")
 
-    def _normalize_list(self, path, obj):
+    def _normalize_list(self, updates, path, obj):
         for i, elem in enumerate(obj):
             if path:
                 ext_path = "%s/$%d" % (path, i)
             else:
                 ext_path = "$%d" % i
-            self._normalize(ext_path, elem)
+            self._normalize(updates, ext_path, elem)
 
-    def _normalize_dict(self, path, obj):
+    def _normalize_dict(self, updates, path, obj):
         for field in obj.keys():
             if path:
                 ext_path = "%s/%s" % (path, field)
             else:
                 ext_path = field
-            self._normalize(ext_path, obj[field])
+            self._normalize(updates, ext_path, obj[field])
 
     def _index_doc(self, db, doc_id):
         """Collect information on parts of document to index.
@@ -93,13 +93,11 @@ class UpdateHandler(object):
         fields = doc.get('solr_fields')
         if fields is None:
             return
-        self.doc_updates = []
+        updates = []
         for field in fields:
             if doc.has_key(field):
-                self._normalize(field, doc[field])
-        self.doc_updates.extend([{'type' : doc[TYPE_ATTR]},
-                                 {'_id' : doc_id}])
-        updates = json.dumps(self.doc_updates)
+                self._normalize(updates, field, doc[field])
+        updates.extend([{'type' : doc[TYPE_ATTR]}, {'_id' : doc_id}])
         return updates
 
     def _delete_doc(self, db, doc_id):

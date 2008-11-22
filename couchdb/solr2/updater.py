@@ -9,6 +9,17 @@
 import logging, threadpool, time
 import amqplib.client_0_8 as amqp
 from daemon import DaemonMixin
+from solr import SolrConnection
+
+try:
+    import simplejson as json
+except ImportError:
+    import json
+
+try:
+    import cElementTree as ET
+except ImportError:
+    import xml.etree.ElementTree as ET
 
 log = logging.getLogger(__name__)
 
@@ -22,9 +33,29 @@ class Updater(DaemonMixin):
         self.pool = threadpool.ThreadPool(workers)
         self.sleep_time = sleep_time
 
+    @classmethod
+    def xml_field(cls, parent, name, value):
+        field = ET.SubElement(parent, 'field')
+        field.attrib['name'] = name
+        field.text = value
+
     def _send_update(self, *args, **kwargs):
+        """
+["[{\"address\": \"Puerto Rico\
+"}, {\"AddressDetails/CountryNameCode\": \"PR\"}, {\"type\": \"Location\"}, {\"_
+id\": \"15308041f5d1dbe4ab3e41d14d8e5032\"}]"]
+        """
         msg = args[0]
-        log.debug("Handling update: " + msg.body)
+        updates = json.loads(msg.body)
+        add = ET.Element('add')
+        for update in updates:
+            doc = ET.SubElement(add, 'doc')
+            for fields in update:
+                for k, v in fields.items(): # There should only be one pair
+                    Updater.xml_field(doc, k, v)
+        #solr = SolrConnection(self, solr_uri)
+        #solr.doUpdateXML(ET.tostring(add))
+        log.debug("Sending update to Solr: " + ET.tostring(add))
 
     def _on_receive(self, msg):
         """Called when an update request is retrieved from AMQP queue."""
