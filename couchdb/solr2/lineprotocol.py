@@ -27,8 +27,7 @@ class LineProtocol(object):
                 obj = json.loads(line)
                 yield obj
             except ValueError:
-                log.exception("Problem reading line")
-                return
+                log.exception("Problem with input: " + line)
             line = sys.stdin.readline()
 
     def output(self, out, serialize=False):

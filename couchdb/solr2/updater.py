@@ -23,14 +23,14 @@ except ImportError:
 
 log = logging.getLogger(__name__)
 
-__all__ = ['Updater']
+__all__ = ['SolrUpdater']
 
 
-class Updater(DaemonMixin):
+class SolrUpdater(DaemonMixin):
 
-    def __init__(self, solr_uri, amqp, workers=10, sleep_time=0.05):
-        self.solr_uri = solr_uri
+    def __init__(self, amqp, solr_uri, workers=10, sleep_time=0.05):
         self.amqp = amqp
+        self.solr_uri = solr_uri
         self.pool = threadpool.ThreadPool(workers)
         self.sleep_time = sleep_time
 
@@ -44,18 +44,6 @@ class Updater(DaemonMixin):
         """Send an update message to Solr.
 
         Solr commits are made only after deletion.
-{
-  'type': 'updated',
-  'data' : [
-    [{"address": "Puerto Rico"}, {"AddressDetails/CountryNameCode": "PR"}, {"type": "Location"}, {"_id": "15308041f5d1dbe4ab3e41d14d8e5032"}]
-  ]
-}
-{
-  'type' : 'deleted',
-  'data' : [
-    '382930',
-  ] 
-}
         """
         msg = args[0]
         updates = json.loads(msg.body)
@@ -67,8 +55,8 @@ class Updater(DaemonMixin):
                 for fields in update:
                     # There should only be one pair
                     for k, v in fields.items():
-                        Updater.xml_field(doc, solr.escapeKey(k),
-                                          solr.escapeVal(v))
+                        SolrUpdater.xml_field(doc, solr.escapeKey(k),
+                                              solr.escapeVal(v))
             log.debug("Sending update to Solr: " + ET.tostring(add))
             try:
                 resp = solr.doUpdateXML(ET.tostring(add))
@@ -99,7 +87,7 @@ class Updater(DaemonMixin):
         self._set_up_amqp()
         req = threadpool.WorkRequest(self.__poll_workers)
         self.pool.putRequest(req)
-        self.channel.basic_consume(self.amqp['amqp_queue'],
+        self.channel.basic_consume(self.amqp['queue'],
                                    callback=self._on_receive, no_ack=True)
         log.info("Waiting for updates")
         while True:
@@ -122,12 +110,12 @@ class Updater(DaemonMixin):
         DaemonMixin._handle_term(self, signal, frame)
 
     def _set_up_amqp(self):
-        self.conn = amqp.Connection(self.amqp['amqp_host'],
-                                    self.amqp['amqp_user'],
-                                    self.amqp['amqp_pass'])
+        self.conn = amqp.Connection(self.amqp['host'],
+                                    self.amqp['user'],
+                                    self.amqp['password'])
         self.channel = self.conn.channel()
-        self.channel.access_request(self.amqp['amqp_realm'],
+        self.channel.access_request(self.amqp['realm'],
                                     read=True, active=True)
-        self.channel.exchange_declare(self.amqp['amqp_key'], 'fanout')
-        self.channel.queue_declare(self.amqp['amqp_queue'])
-        self.channel.queue_bind(self.amqp['amqp_queue'], self.amqp['amqp_key'])
+        self.channel.exchange_declare(self.amqp['routing_key'], 'fanout')
+        self.channel.queue_declare(self.amqp['queue'])
+        self.channel.queue_bind(self.amqp['queue'], self.amqp['routing_key'])
