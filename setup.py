@@ -23,6 +23,7 @@ setup(
         'console_scripts' : [
             'couchdb-solr2-index = couchdb.solr2.index:main',
             'couchdb-solr2-update = couchdb.solr2.update:main',
+            'couchdb-solr2-query = couchdb.solr2.query:main',
         ]
     }
 )

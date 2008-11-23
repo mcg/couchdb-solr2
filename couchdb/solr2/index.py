@@ -10,6 +10,7 @@
 import couchdb, logging, socket, sys, os
 import amqplib.client_0_8 as amqp
 from optparse import OptionParser
+from util import couchdb_line_protocol
 
 try:
     import simplejson as json
@@ -159,18 +160,6 @@ class UpdateHandler(object):
         json.dump(seq_id, fp)
         fp.close()
 
-    
-def updates():
-    line = sys.stdin.readline()
-    while line:
-        try:
-            obj = json.loads(line)
-            yield obj
-        except ValueError:
-            log.exception("Problem with notification")
-            return
-        line = sys.stdin.readline()
-
 
 def parse_opts():
     parser = OptionParser()
@@ -191,7 +180,7 @@ def main():
     logging.basicConfig(filename=opts.log_file, level=logging.DEBUG,
                         format="%(asctime)s: %(levelname)s: %(message)s")
     updater = UpdateHandler(opts.couchdb_uri, opts.seqid_file)
-    for update in updates():
+    for update in couchdb_line_protocol():
         log.debug("Update notification: " + str(update))
         try:
             db = update['db']
