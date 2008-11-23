@@ -10,7 +10,7 @@
 import logging, sys
 from optparse import OptionParser
 from solr import SolrConnection
-from util import *
+from lineprotocol import LineProtocol
 
 try:
     import simplejson as json
@@ -25,8 +25,7 @@ def query_failed():
         'code' : 500,
         'body' : 'Bad query'
     }
-    sys.stdout.write(json.dumps(ret) + "\n")
-    sys.stdout.flush()
+    return ret
 
 
 def build_query(request):
@@ -74,22 +73,21 @@ def main():
                         format="%(asctime)s: %(levelname)s: %(message)s")
 
     solr = SolrConnection(opts.solr_uri)
-    for request in couchdb_line_protocol():
+    protocol = LineProtocol()
+    for request in protocol.input():
         try:
             query = build_query(request)
             if query is None:
-                query_failed()
+                protocol.output(query_failed(), True)
             log.debug("Query parameters:" + str(query))
             resp = json.loads(solr.search(**query))
             ret = {
                 'code' : 200,
                 'json' : resp['response']
             }
-            sys.stdout.write(json.dumps(ret) + "\n")
-            sys.stdout.flush()
+            protocol.output(ret, True)
         except Exception:
             log.exception("Uncaught exception")
-            return 1
     return 0
 
 

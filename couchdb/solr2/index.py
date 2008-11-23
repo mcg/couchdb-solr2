@@ -10,7 +10,7 @@
 import couchdb, logging, socket, sys, os
 import amqplib.client_0_8 as amqp
 from optparse import OptionParser
-from util import couchdb_line_protocol
+from lineprotocol import LineProtocol
 
 try:
     import simplejson as json
@@ -160,6 +160,9 @@ class UpdateHandler(object):
         json.dump(seq_id, fp)
         fp.close()
 
+    def delete_database(self, db_name):
+        pass
+
 
 def parse_opts():
     parser = OptionParser()
@@ -180,26 +183,28 @@ def main():
     logging.basicConfig(filename=opts.log_file, level=logging.DEBUG,
                         format="%(asctime)s: %(levelname)s: %(message)s")
     updater = UpdateHandler(opts.couchdb_uri, opts.seqid_file)
-    for update in couchdb_line_protocol():
+
+    protocol = LineProtocol()
+    for notify in protocol.input():
         log.debug("Update notification: " + str(update))
+
         try:
             db = update['db']
             taipu = update['type']
         except KeyError:
             log.exception("Expected keys 'db' and 'type' not found")
-            return 1
+            continue
 
-        if taipu == 'updated':
-            try:
+        try:
+            if taipu == 'updated':
                 updater.update_index(db)
-            except Exception:
-                log.exception("Uncaught exception")
-                return 2
-        elif taipu == 'deleted':
-            pass
-        else:
-            log.error("Unknown type of update: %s" % taipu)
-            return 4
+            elif taipu == 'deleted':
+                updater.delete_database(db)
+            else:
+                log.error("Unknown type of update: %s" % taipu)
+        except Exception:
+            log.exception("Uncaught exception")
+            continue
     return 0
 
 
