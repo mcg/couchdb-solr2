@@ -6,7 +6,7 @@
 # http://www.opensource.org/licenses/mit-license.php
 # for details.
 
-import couchdb, logging, socket, os
+import couchdb, logging, signal, socket, os
 import amqplib.client_0_8 as amqp
 
 try:
@@ -22,48 +22,38 @@ __all__ = ['UpdateAnnouncer']
 
 
 class UpdateAnnouncer(object):
+    """Send updates to message queue.
     """
-{
-  'type': 'updated',
-  'data' : [
-    [{"address": "Puerto Rico"}, {"AddressDetails/CountryNameCode": "PR"}, {"type": "Location"}, {"_id": "15308041f5d1dbe4ab3e41d14d8e5032"}]
-  ]
-}
-{
-  'type' : 'deleted',
-  'data' : [
-    '382930',
-  ] 
-}
-"""
+
     def __init__(self, amqp, couchdb_uri, seqid_file, batch_size=1000):
         self.amqp = amqp
         self.server = couchdb.Server(couchdb_uri)
         self.seqid_file = seqid_file
         self.batch_size = batch_size
+        signal.signal(signal.SIGTERM, lambda s, f: self.shutdown())
 
     def _announce_updates(self, updates):
         """Send updates out on message queue.
 
         """
-        log.debug('Updates: ' + updates)
+        log.debug('Announcing updates: ' + updates)
         msg = amqp.Message(updates, content_type='application/json')
         self.channel.basic_publish(msg, self.amqp['routing_key'])
 
-    def _set_up_amqp(self):
+    def start_amqp(self):
         self.conn = amqp.Connection(self.amqp['host'], self.amqp['user'],
                                     self.amqp['password'])
         self.channel = self.conn.channel()
         self.channel.access_request(self.amqp['realm'], write=True, active=True)
         self.channel.exchange_declare(self.amqp['routing_key'], 'fanout')
 
-    def _tear_down_amqp(self):
+    def shutdown(self):
         self.channel.close()
         self.conn.close()
 
     def __normalize(self, updates, path, obj):
         if obj is None:
-            log.warning("Object is None")
+            pass
         elif isinstance(obj, str):
             updates.append({path : obj})
         elif isinstance(obj, list):
@@ -92,14 +82,14 @@ class UpdateAnnouncer(object):
     def _index_doc(self, db, doc_id):
         """Collect information on parts of document to index.
 
-        { id : <id>, 
         """
-        log.debug("Processing document %s" % doc_id)
         doc = db.get(doc_id)
         if doc is None:
+            log.warning("Attempt to index nonexistent document: '%s'" % doc_id)
             return
         fields = doc.get('solr_fields')
         if not fields:
+            log.debug("Document '%s' does not define solr_fields" % doc_id)
             return
         updates = []
         for field in fields:
@@ -134,10 +124,9 @@ class UpdateAnnouncer(object):
             log.exception("Problem with sequence id file")
             return
 
-        self._set_up_amqp()
-
         updated_docs, len_docs = self._next_in_sequence(db, seq_id)
         while len_docs > 0:
+            log.debug("Processing %d updates" % len_docs)
             seq_id = updated_docs.rows[len_docs - 1].key
 
             deleted_docs = [doc.id for doc in updated_docs
@@ -156,12 +145,13 @@ class UpdateAnnouncer(object):
                     if doc_updates is not None:
                         doc_updates.append({'_db' : db_name})
                         updates.append(doc_updates)
-                updates = {'type' : 'updated', 'data' : updates}
-                self._announce_updates(json.dumps(updates))
+                if updates:
+                    updates = {'type' : 'updated', 'data' : updates}
+                    self._announce_updates(json.dumps(updates))
+                else:
+                    log.info("No updates to announce")
 
             updated_docs, len_docs = self._next_in_sequence(db, seq_id)
-
-        self._tear_down_amqp()
 
         fp = file(self.seqid_file, 'w')
         json.dump(seq_id, fp)

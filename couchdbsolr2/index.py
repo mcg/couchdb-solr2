@@ -42,7 +42,7 @@ def parse_opts():
 def main():
     opts, args = parse_opts()
     logging.basicConfig(filename=opts.log_file, level=logging.DEBUG,
-                        format="%(asctime)s: %(levelname)s: %(message)s")
+                        format='[%(asctime)s|%(levelname)s|%(name)s|%(threadName)s|%(message)s]')
 
     config = read_config(opts.amqp_file)
     if config is None:
@@ -53,6 +53,7 @@ def main():
         return 2
 
     updater = UpdateAnnouncer(config['amqp'], opts.couchdb_uri, opts.seqid_file)
+    updater.start_amqp()
     protocol = LineProtocol()
     for notify in protocol.input():
         log.debug("Update notification: " + str(notify))

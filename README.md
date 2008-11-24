@@ -31,42 +31,42 @@ home. CouchDB-Solr2 only makes Solr commits when a document is deleted. You
 will need to, at the least, uncomment the autoCommit section in
 `solrconfig.xml`. For example:
 
-  <autoCommit> 
-    <maxDocs>10000</maxDocs>
-    <maxTime>30000</maxTime> 
-  </autoCommit>
+    <autoCommit> 
+        <maxDocs>10000</maxDocs>
+        <maxTime>30000</maxTime> 
+    </autoCommit>
 
 Install an AMQP message broker. This code was tested with [RabbitMQ][rabbitmq].
 
 Ensure that you have setuptools and then install CouchDB-Solr2. This is best
 done using the command:
 
-  # python setup.py develop
+    # python setup.py develop
 
 There are two INI files in the distribution which configure the CouchDB-Solr2
 AMQP clients. Copy these to somewhere permanent and edit if necessary.
 
 CouchDB-Solr2 has three commands:
 
-1. couchdb-solr2-index
-1. couchdb-solr2-query
-1. couchdb-solr2-update
+1. `couchdb-solr2-index`
+1. `couchdb-solr2-query`
+1. `couchdb-solr2-update`
 
 Observe where these are installed by the setup script.
 
 Edit the `etc/couchdb/local.ini` file in your CouchDB install directory. Add
 the following lines:
 
-  [update_notification]
-  solr_indexer=/path/to/couchdb-solr2-index -a /path/to/couchdb-solr2-index.ini
+    [update_notification]
+    solr_indexer=/path/to/couchdb-solr2-index -a /path/to/couchdb-solr2-index.ini
 
-  [external]
-  fti={"/path/to/couchdb-solr2-query", 1}
+    [external]
+    fti={"/path/to/couchdb-solr2-query", 1}
 
 Start your servlet container and AMQP broker if you haven't already and then
 CouchDB. Finally run `couchdb-solr2-update`:
 
-  # /path/to/couchdb-solr2-update -a /path/to/couchdb-solr2-update.ini
+    # /path/to/couchdb-solr2-update -a /path/to/couchdb-solr2-update.ini
 
 Usage
 -----
@@ -85,12 +85,12 @@ access full-text search.
 
 The query parameters currently supported are
 
-1. q
-1. fq
-1. fl
-1. type
-1. count
-1. offset
+1. `q`
+1. `fq`
+1. `fl`
+1. `type`
+1. `count`
+1. `offset`
 
 `q`, `fq`, and `fl` are [standard Solr query parameters][solr-parameters]. `count` and `offset` are respectively equivalent
 to the `rows` and `start` Solr parameters. `type` is used to match the `type`
@@ -99,16 +99,16 @@ efficiency.
 
 An example CouchDB document:
 
-  {
-    "_id": "uniqueid",
-    "_rev": "1",
-    "type" : "Post",
-    "post" : {
-      "title" : "A quick post",
-      "content" : "This blog post can be searched",
-    },
-    "solr_fields" : ["post"]
-  }
+    {
+        "_id": "uniqueid",
+        "_rev": "1",
+        "type" : "Post",
+        "post" : {
+            "title" : "A quick post",
+            "content" : "This blog post can be searched",
+        },
+        "solr_fields" : ["post"]
+    }
 
 When this document is updated, the `post` field is recursively processed
 by CouchDB-Solr2. Two Solr fields are dynamically generated:
@@ -118,9 +118,9 @@ fields that were indexed.
 
 Some example queries:
 
-  http://127.0.0.1:5984/database/_external/fti?q=post/title:quick
-  http://127.0.0.1:5984/database/_external/fti?q=post/content:search&count=5
-  http://127.0.0.1:5984/database/_external/fti?type=Post
+    http://127.0.0.1:5984/database/_external/fti?q=post/title:quick
+    http://127.0.0.1:5984/database/_external/fti?q=post/content:search&count=5
+    http://127.0.0.1:5984/database/_external/fti?type=Post
 
 Thanks
 ------

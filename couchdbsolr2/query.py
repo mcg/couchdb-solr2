@@ -70,7 +70,7 @@ def parse_opts():
 def main():
     opts, args = parse_opts()
     logging.basicConfig(filename=opts.log_file, level=logging.DEBUG,
-                        format="%(asctime)s: %(levelname)s: %(message)s")
+                        format='[%(asctime)s|%(levelname)s|%(name)s|%(threadName)s|%(message)s]')
 
     solr = SolrConnection(opts.solr_uri)
     protocol = LineProtocol()
