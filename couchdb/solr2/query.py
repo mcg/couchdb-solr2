@@ -59,11 +59,11 @@ def build_query(request):
 def parse_opts():
     parser = OptionParser()
     parser.add_option('-l', '--log', dest='log_file',
-                      metavar='FILE', default='/tmp/couchdb-solr2-query.log',
-                      help='Log file')
+                      metavar='FILE', default='couchdb-solr2-query.log',
+                      help='Write log to FILE (default: %default)')
     parser.add_option('-s', '--solr', dest='solr_uri',
-                      metavar='URI', default='127.0.0.1:8080',
-                      help='Solr URI')
+                      metavar='IF', default='127.0.0.1:8080',
+                      help='Solr interface (default: %default)')
     return parser.parse_args()
 
 

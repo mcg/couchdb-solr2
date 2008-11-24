@@ -6,65 +6,63 @@
 # http://www.opensource.org/licenses/mit-license.php
 # for details.
 
-import os, signal
+import os
 
-class DaemonMixin(object):
-    # File mode creation mask of the daemon
-    umask = 0
+__all__ = ['daemonize']
 
-    # Default working directory for the daemon
-    workdir = "/"
+# File mode creation mask of the daemon
+umask = 0
 
-    # Default maximum for the number of available file descriptors
-    maxfd = 1024
+# Default working directory for the daemon
+workdir = "/"
 
-    if (hasattr(os, "devnull")):
-       redirect_to = os.devnull
-    else:
-       redirect_to = "/dev/null"
+# Default maximum for the number of available file descriptors
+maxfd = 1024
 
-    def daemonize(self, pid_file):
-        """Daemonize the current process.
+if (hasattr(os, "devnull")):
+   redirect_to = os.devnull
+else:
+   redirect_to = "/dev/null"
 
-        http://aspn.activestate.com/ASPN/Cookbook/Python/Recipe/278731
-        """
+
+def daemonize(pid_file):
+    """Daemonize the current process.
+
+    http://aspn.activestate.com/ASPN/Cookbook/Python/Recipe/278731
+    """
+    try:
+        pid = os.fork()
+    except OSError, e:
+        raise Exception, "%s [%d]" % (e.strerror, e.errno)
+
+    if (pid == 0): # First child
+        os.setsid()
         try:
-            pid = os.fork()
+            pid = os.fork() # Fork to prevent zombies
         except OSError, e:
             raise Exception, "%s [%d]" % (e.strerror, e.errno)
 
-        if (pid == 0): # First child
-            os.setsid()
-            try:
-                pid = os.fork() # Fork to prevent zombies
-            except OSError, e:
-                raise Exception, "%s [%d]" % (e.strerror, e.errno)
-
-            if (pid == 0): # Second child
-                os.chdir(self.workdir)
-                os.umask(self.umask)
-            else:
-                os._exit(0)
+        if (pid == 0): # Second child
+            os.chdir(workdir)
+            os.umask(umask)
         else:
             os._exit(0)
-        if (os.sysconf_names.has_key("SC_OPEN_MAX")):
-            maxfd = os.sysconf("SC_OPEN_MAX")
-        else:
-            maxfd = self.maxfd
-        for fd in range(0, maxfd):
-            try:
-                os.close(fd)
-            except OSError: # Ignore if fd wasn't opened before
-                pass
-        os.open(self.redirect_to, os.O_RDWR)
-        os.dup2(0, 1)
-        os.dup2(0, 2)
+    else:
+        os._exit(0)
+    if (os.sysconf_names.has_key("SC_OPEN_MAX")):
+        maxfd = os.sysconf("SC_OPEN_MAX")
+    else:
+        maxfd = maxfd
+    for fd in range(0, maxfd):
+        try:
+            os.close(fd)
+        except OSError: # Ignore if fd wasn't opened before
+            pass
+    os.open(redirect_to, os.O_RDWR)
+    os.dup2(0, 1)
+    os.dup2(0, 2)
 
-        fp = file(pid_file, 'w')
-        fp.write(str(os.getpid()))
-        fp.close()
-        signal.signal(signal.SIGTERM, self._handle_term)
-        return 0
-
-    def _handle_term(self, signal, frame):
-        os.exit(0)
+    fp = file(pid_file, 'w')
+    fp.write(str(os.getpid()))
+    fp.close()
+    return 0

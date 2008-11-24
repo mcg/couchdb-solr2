@@ -6,9 +6,8 @@
 # http://www.opensource.org/licenses/mit-license.php
 # for details.
 
-import logging, threadpool, time
+import logging, signal, threadpool, time
 import amqplib.client_0_8 as amqp
-from daemon import DaemonMixin
 from solr import SolrConnection, SolrException
 
 try:
@@ -26,13 +25,14 @@ log = logging.getLogger(__name__)
 __all__ = ['SolrUpdater']
 
 
-class SolrUpdater(DaemonMixin):
+class SolrUpdater(object):
 
-    def __init__(self, amqp, solr_uri, workers=10, sleep_time=0.05):
+    def __init__(self, amqp, solr_uri, workers=10, sleep_time=0.1):
         self.amqp = amqp
         self.solr_uri = solr_uri
         self.pool = threadpool.ThreadPool(workers)
         self.sleep_time = sleep_time
+        signal.signal(signal.SIGTERM, lambda s, f: self.shutdown())
 
     @classmethod
     def xml_field(cls, parent, name, value):
@@ -88,14 +88,14 @@ class SolrUpdater(DaemonMixin):
         req = threadpool.WorkRequest(self.__poll_workers)
         self.pool.putRequest(req)
         self.channel.basic_consume(self.amqp['queue'],
-                                   callback=self._on_receive, no_ack=True)
+                                   callback=self._on_receive,
+                                   no_ack=True)
         log.info("Waiting for updates")
         while True:
             self.channel.wait()
 
     def __poll_workers(self):
-        """Poll for completed worker threads."""
-        log.info("Starting thread to poll workers")
+        log.info("Started thread to poll workers")
         while True:
             try:
                 self.pool.poll()
@@ -103,11 +103,9 @@ class SolrUpdater(DaemonMixin):
                 pass
             time.sleep(self.sleep_time)
 
-    def _handle_term(self, signal, frame):
-        log.debug("Preparing to exit")
+    def shutdown(self):
         self.channel.close()
         self.conn.close()
-        DaemonMixin._handle_term(self, signal, frame)
 
     def _set_up_amqp(self):
         self.conn = amqp.Connection(self.amqp['host'],

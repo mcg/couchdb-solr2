@@ -26,16 +26,16 @@ def parse_opts():
     parser = OptionParser()
     parser.add_option('-l', '--log', dest='log_file',
                       metavar='FILE', default='couchdb-solr2-index.log',
-                      help='Log file')
+                      help='Write log to FILE (default: %default)')
     parser.add_option('-c', '--couchdb', dest='couchdb_uri',
                       metavar='URI', default='http://127.0.0.1:5984/',
-                      help='URI of CouchDB')
+                      help='CouchDB URI (default: %default)')
     parser.add_option('-s', '--seq-id', dest='seqid_file',
                       metavar='FILE', default='.couchdb_seq_id',
-                      help='File to store sequence id in')
+                      help='Store CouchDB sequence id in FILE (default: %default)')
     parser.add_option('-a', '--amqp-config', dest='amqp_file',
                       metavar='FILE', default='couchdb-solr2-index.ini',
-                      help='AMQP configuration file')
+                      help='AMQP configuration (default: %default)')
     return parser.parse_args()
 
 

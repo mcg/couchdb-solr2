@@ -16,7 +16,8 @@ class LogHelper(object):
     level = logging.DEBUG
 
     def _init(self):
-        logging.basicConfig(level=LogHelper.level, filename=LogHelper.log_file, filemode='w',
+        logging.basicConfig(level=LogHelper.level, filename=LogHelper.log_file,
+                            filemode='w',
                             format='[%(asctime)s|%(levelname)s|%(name)s|%(threadName)s|%(message)s]')
 
     def get_logger(self, name):
