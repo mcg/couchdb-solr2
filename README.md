@@ -9,11 +9,10 @@ reads from the message queue and updates Solr.
 Dependencies
 ------------
 
-[setuptools][setuptools]
-
-CouchDB (with _external interface)
-
-[Solr 1.3.x][solr]
+* [setuptools][setuptools]
+* CouchDB (with _external interface)
+* [CouchDB Python][couchdb-python]
+* [Solr 1.3.x][solr]
 
 AMQP broker
 
@@ -133,6 +132,7 @@ shameless stealing).
 
 
 [setuptools]: http://peak.telecommunity.com/DevCenter/setuptools
+[couchdb-python]: http://code.google.com/p/couchdb-python/
 [solr]: http://lucene.apache.org/solr/
 [solr-parameters]: http://wiki.apache.org/solr/CommonQueryParameters
 [action2]: http://github.com/jchris/couchdb/tree/action2
