@@ -17,9 +17,8 @@ setup(
     author='Jacinto Ximénez de Guzmán',
     author_email='x.de.guzman.j@gmail.com',
     license='MIT',
-    install_requires=['couchdb', 'amqplib', 'threadpool >= 1.2.4'],
-    packages=['couchdb.solr2'],
-    namespace_packages=['couchdb'],
+    install_requires=['amqplib', 'threadpool >= 1.2.4'],
+    packages=['couchdbsolr2'],
     entry_points={
         'console_scripts' : [
             'couchdb-solr2-index = couchdb.solr2.index:main',
