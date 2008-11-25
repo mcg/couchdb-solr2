@@ -56,12 +56,16 @@ class UpdateAnnouncer(object):
             pass
         elif isinstance(obj, str):
             updates.append({path : obj})
+        elif isinstance(obj, int):
+            updates.append({path : obj})
+        elif isinstance(obj, float):
+            updates.append({path : obj})
         elif isinstance(obj, list):
             self.__normalize_list(updates, path, obj)
         elif isinstance(obj, dict):
             self.__normalize_dict(updates, path, obj)
         else:
-            log.warning("No type matched")
+            log.warning("No type matched: " + type(obj))
 
     def __normalize_list(self, updates, path, obj):
         for i, elem in enumerate(obj):

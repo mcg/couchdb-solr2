@@ -32,6 +32,7 @@
 import httplib
 import socket
 import urllib
+from xml.sax.saxutils import escape
 
 try:
     import cElementTree as ET
@@ -114,15 +115,10 @@ class SolrConnection(object):
     return data
 
   def escapeVal(self,val):
-    val = val.replace("&", "&amp;")
-    val = val.replace("<", "&lt;")
-    val = val.replace("]]>", "]]&gt;")
-    return unicode(val)
+    return escape(unicode(val))
 
   def escapeKey(self,key):
-    key = key.replace("&", "&amp;")
-    key = key.replace('"', "&quot;")
-    return unicode(key)
+    return escape(unicode(key), {'"' : '&quot;'})
 
   def delete(self, id):
     xstr = '<delete><id>'+self.escapeVal(`id`)+'</id></delete>'

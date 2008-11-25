@@ -45,36 +45,33 @@ class SolrUpdater(object):
 
         Solr commits are made only after deletion.
         """
-        msg = args[0]
-        updates = json.loads(msg.body)
-        solr = SolrConnection(self.solr_uri)
-        if updates['type'] == 'updated':
-            add = ET.Element('add')
-            for update in updates['data']:
-                doc = ET.SubElement(add, 'doc')
-                for fields in update:
-                    # There should only be one pair
-                    for k, v in fields.items():
-                        SolrUpdater.xml_field(doc, solr.escapeKey(k),
-                                              solr.escapeVal(v))
-            log.debug("Sending update to Solr: " + ET.tostring(add))
-            try:
+        try:
+            msg = args[0]
+            updates = json.loads(msg.body)
+            solr = SolrConnection(self.solr_uri)
+            if updates['type'] == 'updated':
+                add = ET.Element('add')
+                for update in updates['data']:
+                    doc = ET.SubElement(add, 'doc')
+                    for fields in update:
+                        # There should only be one pair
+                        for k, v in fields.items():
+                            SolrUpdater.xml_field(doc, solr.escapeKey(k),
+                                                  solr.escapeVal(v))
+                log.debug("Sending update to Solr: " + ET.tostring(add))
                 resp = solr.doUpdateXML(ET.tostring(add))
                 log.debug("Solr response: " + resp)
-            except SolrException:
-                log.exception("Exception when contacting Solr")
-                return
-        elif updates['type'] == 'deleted':
-            for id in updates['data']:
-                log.debug("Deleting %s" % id)
-            try:
+            elif updates['type'] == 'deleted':
+                for id in updates['data']:
+                    log.debug("Deleting %s" % id)
                 solr.delete(id)
                 solr.commit()
-            except SolrException:
-                log.exception("Exception when contacting Solr")
-                return
-        else:
-            log.warning("Unrecognized update type: '%s'" % updates['type'])
+            else:
+                log.warning("Unrecognized update type: '%s'" % updates['type'])
+        except SolrException:
+            log.exception("Exception when contacting Solr")
+        except Exception:
+            log.exception("Unexpected exception")
 
     def _on_receive(self, msg):
         """Called when an update request is retrieved from AMQP queue."""

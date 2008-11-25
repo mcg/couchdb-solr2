@@ -34,10 +34,13 @@ def build_query(request):
         search = request['query']
         query = search['q']
 
-        fl = search.get('fl')
         doctype = search.get('type')
         count = search.get('count', 25)
         offset = search.get('offset', 0)
+
+        if 'type' in search: del search['type']
+        if 'count' in search: del search['count']
+        if 'offset' in search: del search['offset']
 
         params = {
             'fq' : ['_db:%s' % db_name],
@@ -48,8 +51,7 @@ def build_query(request):
         }
         if doctype is not None:
             params['fq'].append('type:%s' % doctype)
-        if fl is not None:
-            params['fl'] = fl
+        params.update(search)
         return params
     except KeyError:
         log.exception("Missing expected parameter")
@@ -79,6 +81,7 @@ def main():
             query = build_query(request)
             if query is None:
                 protocol.output(query_failed(), True)
+                continue
             log.debug("Query parameters:" + str(query))
             resp = json.loads(solr.search(**query))
             ret = {

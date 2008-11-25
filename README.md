@@ -1,10 +1,10 @@
 CouchDB-Solr2
 =============
 
-CouchDB-Solr2 provides full-text indexing and full-text search to CouchDB
-using Solr. It has a distributed architecture. Update notifications from
-CouchDB are initially sent to an AMQP message queue. An intermediate server
-reads from the message queue and updates Solr.
+CouchDB-Solr2 provides a distributed architecture for full-text indexing and
+searching with CouchDB. Update notifications from CouchDB are sent to
+an AMQP exchange. An intermediary server then listens on that exchange for
+incoming AMQP messages and directly alerts Solr of the changes.
 
 Dependencies
 ------------
