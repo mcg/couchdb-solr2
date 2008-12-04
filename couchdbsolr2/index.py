@@ -47,7 +47,7 @@ def validate_amqp(amqp):
         and amqp.has_key('realm')
 
 
-def configure(opts):
+def configure(config_file):
     defaults = {
         'index' : {
             'seqid' : '.couchdb_seq_id'
@@ -60,7 +60,7 @@ def configure(opts):
             'level' : 'info'
         }
     }
-    config = read_config(opts.config_file, defaults)
+    config = read_config(config_file, defaults)
     if config is None:
         print >> sys.stderr, 'Configuration file must be provided for connection to AMQP broker'
         return
@@ -81,7 +81,7 @@ def parse_opts():
 
 def main():
     opts, args = parse_opts()
-    config = configure(opts)
+    config = configure(opts.config_file)
     if config is None:
         return 1
 

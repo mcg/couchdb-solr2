@@ -131,17 +131,15 @@ class UpdateAnnouncer(object):
         except socket.error:
             log.exception('Problem connecting to database')
 
-    def read_sequence_id(self):
-        if not os.path.isfile(self.seqid_file):
-            seq_id = 0
-        else:
-            try:
-                fp = file(self.seqid_file)
-                seq_id = int(fp.readline())
-                fp.close()
-            except IOError:
-                log.exception('Exception reading sequence id file')
-        return seq_id
+    def read_sequence_ids(self):
+        try:
+            return json.load(file(self.seqid_file))
+        except Exception:
+            log.exception('Error reading sequence id file')
+        return {}
+
+    def write_sequence_ids(self, seqids):
+        json.dump(seqids, file(self.seqid_file, 'w'))
 
     def update_index(self, db_name):
         """Announce updates to a database
@@ -157,10 +155,11 @@ class UpdateAnnouncer(object):
         db = self.server[db_name]
         log.debug("Connected to database '%s'" % db_name)
 
-        seq_id = self.read_sequence_id()
-        for updated_docs, len_docs, new_seq_id in self.next_in_sequence(db, seq_id):
+        seqids = self.read_sequence_ids()
+        seqid = seqids.get(db_name, 0)
+        for updated_docs, len_docs, new_seqid in self.next_in_sequence(db, seqid):
             log.info("Processing %d update(s)" % len_docs)
-            seq_id = new_seq_id
+            seqid = new_seqid
 
             deleted_docs = [doc.id for doc in updated_docs
                             if doc.value.get('deleted', False)]
@@ -181,9 +180,8 @@ class UpdateAnnouncer(object):
                 if updates:
                     self._announce_updates({'type' : 'updated', 'data' : updates})
 
-        fp = file(self.seqid_file, 'w')
-        fp.write(str(seq_id))
-        fp.close()
+        seqids.update({db_name : seqid})
+        self.write_sequence_ids(seqids)
 
     def delete_database(self, db_name):
         """Announce that database was deleted.
@@ -193,4 +191,8 @@ class UpdateAnnouncer(object):
 
         :param db_name: Name of deleted database
         """
+        seqids = self.read_sequence_ids()
+        if seqids.has_key(db_name):
+            del seqids[db_name]
+            self.write_sequence_ids(seqids)
         self._announce_updates({'type' : 'deleted_db', 'data' : db_name})
