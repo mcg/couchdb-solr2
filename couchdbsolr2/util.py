@@ -12,7 +12,16 @@ from ConfigParser import ConfigParser
 __all__ = ['read_config']
 
 
-def read_config(config_file):
+def read_config(config_file, defaults={}):
+    """Parse a configuration file.
+
+    :param config_file: Path to configuration file
+    :param defaults: Default settings (see return value for structure)
+    :return: A dictionary where keys are sections of the file and
+             values are dictionaries of definitions in said section.
+
+    Returns None if file is not found.
+    """
     if not os.path.isfile(config_file):
         return None
 
@@ -22,4 +31,11 @@ def read_config(config_file):
     settings = {}
     for section in config.sections():
         settings[section] = dict(config.items(section))
-    return settings
+
+    for key in defaults.keys():
+        if settings.has_key(key):
+            defaults[key].update(settings[key])
+    keys = [key for key in settings.keys() if key not in defaults.keys()]
+    for key in keys:
+        defaults[key] = settings[key]
+    return defaults

@@ -12,6 +12,7 @@ from announcer import UpdateAnnouncer
 from lineprotocol import LineProtocol
 from optparse import OptionParser
 from util import read_config
+from version import version
 
 log = logging.getLogger(__name__)
 
@@ -22,37 +23,52 @@ def validate_amqp(amqp):
         and amqp.has_key('realm')
 
 
+def configure(opts):
+    defaults = {
+        'index' : {
+            'seqid' : '.couchdb_seq_id'
+        },
+        'couchdb' : {
+            'uri' : 'http://127.0.0.1:5984/'
+        },
+        'log' : {
+            'file' : 'couchdb-solr2-index.log',
+            'level' : 'info'
+        }
+    }
+    config = read_config(opts.config_file, defaults)
+    if config is None:
+        print >> sys.stderr, 'Configuration file must be provided for connection to AMQP broker'
+        return
+    if not validate_amqp(config.get('amqp')):
+        print >> sys.stderr, 'AMQP configuration is invalid'
+        return
+    return config
+
+
 def parse_opts():
-    parser = OptionParser()
-    parser.add_option('-l', '--log', dest='log_file',
-                      metavar='FILE', default='couchdb-solr2-index.log',
-                      help='Write log to FILE (default: %default)')
-    parser.add_option('-c', '--couchdb', dest='couchdb_uri',
-                      metavar='URI', default='http://127.0.0.1:5984/',
-                      help='CouchDB URI (default: %default)')
-    parser.add_option('-s', '--seq-id', dest='seqid_file',
-                      metavar='FILE', default='.couchdb_seq_id',
-                      help='Store CouchDB sequence id in FILE (default: %default)')
-    parser.add_option('-a', '--amqp-config', dest='amqp_file',
+    parser = OptionParser(usage="%prog -c FILE",
+                          version="CouchDB-Solr2 %s" % version)
+    parser.add_option('-c', '--config', dest='config_file',
                       metavar='FILE', default='couchdb-solr2-index.ini',
-                      help='AMQP configuration (default: %default)')
+                      help='Configuration (default: %default)')
     return parser.parse_args()
 
 
 def main():
     opts, args = parse_opts()
-    logging.basicConfig(filename=opts.log_file, level=logging.DEBUG,
-                        format='[%(asctime)s|%(levelname)s|%(name)s|%(threadName)s|%(message)s]')
-
-    config = read_config(opts.amqp_file)
+    config = configure(opts)
     if config is None:
-        print 'AMQP configuration not found'
         return 1
-    if not validate_amqp(config.get('amqp')):
-        print 'AMQP configuration is invalid'
-        return 2
+    print config; return 0
 
-    updater = UpdateAnnouncer(config['amqp'], opts.couchdb_uri, opts.seqid_file)
+    log_format = '[%(asctime)s|%(levelname)s|%(name)s|%(message)s]'
+    logging.basicConfig(filename=config['log']['file'],
+                        level=config['log']['level'],
+                        format=log_format)
+
+    updater = UpdateAnnouncer(config['amqp'], config['couchdb']['uri'],
+                              config['index']['seqid'])
     updater.start_amqp()
     protocol = LineProtocol()
     for notify in protocol.input():
