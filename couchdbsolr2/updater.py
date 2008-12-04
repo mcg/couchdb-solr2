@@ -41,11 +41,14 @@ class SolrUpdater(object):
         field.text = value
 
     def _send_update(self, *args, **kwargs):
-        """Send an update message to Solr.
+        """Send an update request to Solr.
 
-        Solr commits are made only after deletion.
+        Solr commits are made only on deletion.
+
+        Takes a single argument: the AMQP message that was received.
         """
         try:
+            log.info('Processing update request')
             msg = args[0]
             updates = json.loads(msg.body)
             solr = SolrConnection(self.solr_uri)
@@ -55,6 +58,7 @@ class SolrUpdater(object):
                     doc = ET.SubElement(add, 'doc')
                     for fields in update:
                         # There should only be one pair
+                        # FIXME: move to a dictionary structure
                         for k, v in fields.items():
                             SolrUpdater.xml_field(doc, solr.escapeKey(k),
                                                   solr.escapeVal(v))
@@ -63,11 +67,13 @@ class SolrUpdater(object):
                 log.debug("Solr response: " + resp)
             elif updates['type'] == 'deleted':
                 for id in updates['data']:
-                    log.debug("Deleting %s" % id)
+                    log.debug("Deleting document with id '%s'" % id)
                 solr.delete(id)
                 solr.commit()
             elif updates['type'] == 'deleted_db':
-                solr.deleteByQuery("_db:%s" % updates['data'])
+                db_name = updates['data']
+                log.info("Deleting indexes for database '%s'" % db_name)
+                solr.deleteByQuery("_db:%s" % db_name)
                 solr.commit()
             else:
                 log.warning("Unrecognized update type: '%s'" % updates['type'])
@@ -78,7 +84,7 @@ class SolrUpdater(object):
 
     def _on_receive(self, msg):
         """Called when an update request is retrieved from AMQP queue."""
-        log.info("Received update request")
+        log.debug("Received update request")
         req = threadpool.WorkRequest(self._send_update, args=[msg])
         self.pool.putRequest(req)
 

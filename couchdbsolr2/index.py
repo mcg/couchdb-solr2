@@ -97,6 +97,7 @@ def main():
         return 2
     signal.signal(signal.SIGTERM, lambda s, f: updater.shutdown())
 
+    log.info("Waiting for updates")
     eval_loop(updater)
     return 0
 

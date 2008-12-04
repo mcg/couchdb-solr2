@@ -1,0 +1,2 @@
+* Use worker threads in couchdb-solr2-index to process individual updates.
+* Improve data structure used to communicate updated documents.
