@@ -6,7 +6,7 @@
 # http://www.opensource.org/licenses/mit-license.php
 # for details.
 
-import logging, signal, threadpool, time
+import logging, socket, threadpool, time
 import amqplib.client_0_8 as amqp
 from solr import SolrConnection, SolrException
 
@@ -27,12 +27,12 @@ __all__ = ['SolrUpdater']
 
 class SolrUpdater(object):
 
-    def __init__(self, amqp, solr_uri, workers=10, sleep_time=0.1):
+    def __init__(self, amqp, solr_uri, sleep_time=0.1):
         self.amqp = amqp
         self.solr_uri = solr_uri
-        self.pool = threadpool.ThreadPool(workers)
         self.sleep_time = sleep_time
-        signal.signal(signal.SIGTERM, lambda s, f: self.shutdown())
+        self.pool = None
+        self.workers = 0
 
     @classmethod
     def xml_field(cls, parent, name, value):
@@ -82,9 +82,12 @@ class SolrUpdater(object):
         req = threadpool.WorkRequest(self._send_update, args=[msg])
         self.pool.putRequest(req)
 
-    def process_updates(self):
-        """Main eval loop."""
-        self._set_up_amqp()
+    def process_updates(self, workers=10):
+        """Main eval loop.
+
+        """
+        self.workers = workers
+        self.pool = threadpool.ThreadPool(self.workers)
         req = threadpool.WorkRequest(self.__poll_workers)
         self.pool.putRequest(req)
         self.channel.basic_consume(self.amqp['queue'],
@@ -103,17 +106,23 @@ class SolrUpdater(object):
                 pass
             time.sleep(self.sleep_time)
 
+    def start_amqp(self):
+        try:
+            self.conn = amqp.Connection(self.amqp['host'],
+                                        self.amqp['user'],
+                                        self.amqp['password'])
+            self.channel = self.conn.channel()
+            self.channel.access_request(self.amqp['realm'],
+                                        read=True, active=True)
+            self.channel.exchange_declare(self.amqp['routing_key'], 'fanout')
+            self.channel.queue_declare(self.amqp['queue'])
+            self.channel.queue_bind(self.amqp['queue'], self.amqp['routing_key'])
+        except socket.error:
+            return False
+        return True
+
     def shutdown(self):
+        if self.pool is not None:
+            self.pool.dismissWorkers(self.workers, True)
         self.channel.close()
         self.conn.close()
-
-    def _set_up_amqp(self):
-        self.conn = amqp.Connection(self.amqp['host'],
-                                    self.amqp['user'],
-                                    self.amqp['password'])
-        self.channel = self.conn.channel()
-        self.channel.access_request(self.amqp['realm'],
-                                    read=True, active=True)
-        self.channel.exchange_declare(self.amqp['routing_key'], 'fanout')
-        self.channel.queue_declare(self.amqp['queue'])
-        self.channel.queue_bind(self.amqp['queue'], self.amqp['routing_key'])

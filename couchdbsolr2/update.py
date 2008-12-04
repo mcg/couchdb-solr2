@@ -7,11 +7,12 @@
 # http://www.opensource.org/licenses/mit-license.php
 # for details.
 
-import logging, sys
+import logging, signal, sys
 from daemon import daemonize
 from optparse import OptionParser
 from updater import SolrUpdater
-from util import read_config
+from util import *
+from version import version
 
 
 def validate_amqp(amqp):
@@ -20,45 +21,66 @@ def validate_amqp(amqp):
         and amqp.has_key('realm') and amqp.has_key('queue')
 
 
+def validate_solr(solr):
+    return solr and solr.has_key('host') and solr.has_key('port')
+
+
+def configure(config_file):
+    defaults = {
+        'log' : {
+            'file' : 'couchdb-solr2-update.log',
+            'level' : 'info'
+        }
+    }
+    config = read_config(config_file, defaults)
+    if config is None:
+        print >> sys.stderr, 'Configuration file must be provided for connection to AMQP broker'
+        return
+    if not validate_amqp(config.get('amqp')):
+        print >> sys.stderr, 'AMQP configuration is invalid'
+        return
+    if not validate_solr(config.get('solr')):
+        print >> sys.stderr, 'Solr configuration is invalid'
+        return
+    return config
+
+
 def parse_opts():
-    parser = OptionParser()
-    parser.add_option('-l', '--log', dest='log_file',
-                      metavar='FILE', default='couchdb-solr2-update.log',
-                      help='Write log to FILE (default: %default)')
+    parser = OptionParser(usage="%prog -c FILE [-n] [-p FILE]",
+                          version="CouchDB-Solr2 %s" % version)
     parser.add_option('-p', '--pid', dest='pid_file',
                       metavar='FILE', default='couchdb-solr2-update.pid',
                       help="Write daemon's PID to FILE (default: %default)")
     parser.add_option('-n', '--no-daemonize', dest='no_daemonize',
                       action='store_true', default=False,
                       help="Don't daemonize (default: daemonize)")
-    parser.add_option('-s', '--solr', dest='solr_uri',
-                      metavar='IF', default='127.0.0.1:8080',
-                      help='Solr interface (default: %default)')
-    parser.add_option('-a', '--amqp-config', dest='amqp_file',
-                      metavar='FILE', default='couchdb-solr2-index.ini',
-                      help='AMQP configuration (default: %default)')
+    parser.add_option('-c', '--config', dest='config_file',
+                      metavar='FILE', default='couchdb-solr2-update.ini',
+                      help='Configuration (default: %default)')
     return parser.parse_args()
 
 
 def main():
     opts, args = parse_opts()
-
-    config = read_config(opts.amqp_file)
+    config = configure(opts.config_file)
     if config is None:
-        print 'AMQP configuration not found'
-        return 1
-    if not validate_amqp(config.get('amqp')):
-        print 'AMQP configuration is invalid'
         return 1
 
     if opts.no_daemonize is False:
         daemonize(opts.pid_file)
 
-    # File handles will be closed during daemonisation
-    logging.basicConfig(filename=opts.log_file, level=logging.DEBUG,
-                        format='[%(asctime)s|%(levelname)s|%(name)s|%(threadName)s|%(message)s]')
+    # File handles will be closed during daemonization
+    log_format = '[%(asctime)s|%(levelname)s|%(name)s|%(threadName)s|%(message)s]'
+    logging.basicConfig(filename=config['log']['file'],
+                        level=string2log_level(config['log']['level']),
+                        format=log_format)
 
-    updater = SolrUpdater(config['amqp'], opts.solr_uri)
+    updater = SolrUpdater(config['amqp'],
+                          '%s:%s' % (config['solr']['host'], config['solr']['port']))
+    if updater.start_amqp() is False:
+        print >> sys.stderr, "Problem connecting to AMQP broker"
+        return 2
+    signal.signal(signal.SIGTERM, lambda s, f: updater.shutdown())
     updater.process_updates()
     return 0
 
