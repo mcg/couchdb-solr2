@@ -7,14 +7,38 @@
 # http://www.opensource.org/licenses/mit-license.php
 # for details.
 
-import logging, sys
+import logging, signal, sys
 from announcer import UpdateAnnouncer
 from lineprotocol import LineProtocol
 from optparse import OptionParser
-from util import read_config
+from util import *
 from version import version
 
 log = logging.getLogger(__name__)
+
+
+def eval_loop(updater):
+    protocol = LineProtocol()
+    for notify in protocol.input():
+        log.debug("Received update notification: " + str(notify))
+
+        try:
+            db = notify['db']
+            taipu = notify['type']
+        except KeyError:
+            log.exception("Expected keys 'db' and 'type' not found")
+            continue
+
+        try:
+            if taipu == 'updated':
+                updater.update_index(db)
+            elif taipu == 'deleted':
+                updater.delete_database(db)
+            else:
+                log.error("Unknown update notification: %s" % taipu)
+        except Exception:
+            log.exception("Uncaught exception")
+            continue
 
 
 def validate_amqp(amqp):
@@ -60,37 +84,20 @@ def main():
     config = configure(opts)
     if config is None:
         return 1
-    print config; return 0
 
     log_format = '[%(asctime)s|%(levelname)s|%(name)s|%(message)s]'
     logging.basicConfig(filename=config['log']['file'],
-                        level=config['log']['level'],
+                        level=string2log_level(config['log']['level']),
                         format=log_format)
 
     updater = UpdateAnnouncer(config['amqp'], config['couchdb']['uri'],
                               config['index']['seqid'])
-    updater.start_amqp()
-    protocol = LineProtocol()
-    for notify in protocol.input():
-        log.debug("Update notification: " + str(notify))
+    if updater.start_amqp() is False:
+        print >> sys.stderr, "Problem connecting to AMQP broker"
+        return 2
+    signal.signal(signal.SIGTERM, lambda s, f: updater.shutdown())
 
-        try:
-            db = notify['db']
-            taipu = notify['type']
-        except KeyError:
-            log.exception("Expected keys 'db' and 'type' not found")
-            continue
-
-        try:
-            if taipu == 'updated':
-                updater.update_index(db)
-            elif taipu == 'deleted':
-                updater.delete_database(db)
-            else:
-                log.error("Unknown type of update: %s" % taipu)
-        except Exception:
-            log.exception("Uncaught exception")
-            continue
+    eval_loop(updater)
     return 0
 
 

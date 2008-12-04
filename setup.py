@@ -8,12 +8,14 @@
 # for details.
 
 from setuptools import setup
+from couchdbsolr2.version import version
+
 
 setup(
     name='CouchDB-Solr2',
     description='Integrates full-text indexing and searching with CouchDB',
     url='http://github.com/deguzman/couchdb-solr2/tree/master',
-    version='0.1',
+    version=version,
     author='Jacinto Ximénez de Guzmán',
     author_email='x.de.guzman.j@gmail.com',
     license='MIT',

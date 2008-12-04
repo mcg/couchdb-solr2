@@ -6,7 +6,7 @@
 # http://www.opensource.org/licenses/mit-license.php
 # for details.
 
-import couchdb, logging, signal, socket, os
+import couchdb, logging, socket, os
 import amqplib.client_0_8 as amqp
 
 try:
@@ -22,50 +22,65 @@ __all__ = ['UpdateAnnouncer']
 
 
 class UpdateAnnouncer(object):
-    """Send updates to message queue.
+    """Send notification of database updates to AMQP broker.
+
     """
 
     def __init__(self, amqp, couchdb_uri, seqid_file, batch_size=1000):
+        """Constructor.
+
+        :param amqp: AMQP configuration
+        :param couchdb_uri: CouchDB URI
+        :param seqid_file: Path to file containing last sequence id
+        :param batch_size: Max updated documents to pull at once
+        """
         self.amqp = amqp
         self.server = couchdb.Server(couchdb_uri)
         self.seqid_file = seqid_file
         self.batch_size = batch_size
-        signal.signal(signal.SIGTERM, lambda s, f: self.shutdown())
 
     def _announce_updates(self, updates):
         """Send updates out on message queue.
 
+        :param updates: Update structure to be serialized and sent
         """
-        log.debug('Announcing updates: ' + updates)
-        msg = amqp.Message(updates, content_type='application/json')
+        serialized = json.dumps(updates)
+        log.debug('Sending serialized message: ' + serialized)
+        msg = amqp.Message(serialized, content_type='application/json')
         self.channel.basic_publish(msg, self.amqp['routing_key'])
 
     def start_amqp(self):
-        self.conn = amqp.Connection(self.amqp['host'], self.amqp['user'],
-                                    self.amqp['password'])
-        self.channel = self.conn.channel()
-        self.channel.access_request(self.amqp['realm'], write=True, active=True)
-        self.channel.exchange_declare(self.amqp['routing_key'], 'fanout')
+        """Connect to AMQP broker.
+
+        """
+        try:
+            self.conn = amqp.Connection(self.amqp['host'], self.amqp['user'],
+                                        self.amqp['password'])
+            self.channel = self.conn.channel()
+            self.channel.access_request(self.amqp['realm'], write=True, active=True)
+            self.channel.exchange_declare(self.amqp['routing_key'], 'fanout')
+        except socket.error:
+            return False
+        return True
 
     def shutdown(self):
+        """Clean up AMQP resources.
+
+        """
         self.channel.close()
         self.conn.close()
 
     def __normalize(self, updates, path, obj):
         if obj is None:
             pass
-        elif isinstance(obj, str):
-            updates.append({path : obj})
-        elif isinstance(obj, int):
-            updates.append({path : obj})
-        elif isinstance(obj, float):
+        elif isinstance(obj, str) or isinstance(obj, int) or isinstance(obj, float):
             updates.append({path : obj})
         elif isinstance(obj, list):
             self.__normalize_list(updates, path, obj)
         elif isinstance(obj, dict):
             self.__normalize_dict(updates, path, obj)
         else:
-            log.warning("No type matched: " + str(type(obj)))
+            log.error("Unhandled field type: " + str(type(obj)))
 
     def __normalize_list(self, updates, path, obj):
         for i, elem in enumerate(obj):
@@ -84,12 +99,12 @@ class UpdateAnnouncer(object):
             self.__normalize(updates, ext_path, obj[field])
 
     def _index_doc(self, db, doc_id):
-        """Collect information on parts of document to index.
+        """Collect document fields to be indexed by Solr.
 
         """
         doc = db.get(doc_id)
         if doc is None:
-            log.warning("Attempt to index nonexistent document: '%s'" % doc_id)
+            log.warning("Unable to find document in database: '%s'" % doc_id)
             return
         fields = doc.get('solr_fields')
         if not fields:
@@ -102,36 +117,50 @@ class UpdateAnnouncer(object):
         updates.extend([{'type' : doc[TYPE_ATTR]}, {'_id' : doc_id}])
         return updates
 
-    def _next_in_sequence(self, db, seq_id):
-        log.debug("Sequence id: %d" % seq_id)
+    def next_in_sequence(self, db, seq_id):
         try:
             updated_docs = db.view('_all_docs_by_seq', startkey=seq_id,
                                    count=self.batch_size)
-            return updated_docs, len(updated_docs)
+            len_docs = len(updated_docs)
+            while len_docs > 0:
+                seq_id = updated_docs.rows[len_docs - 1].key
+                yield (updated_docs, len_docs, seq_id)
+                updated_docs = db.view('_all_docs_by_seq', startkey=seq_id,
+                                       count=self.batch_size)
+                len_docs = len(updated_docs)
         except socket.error:
             log.exception('Problem connecting to database')
-            return [], 0
+
+    def read_sequence_id(self):
+        if not os.path.isfile(self.seqid_file):
+            seq_id = 0
+        else:
+            try:
+                fp = file(self.seqid_file)
+                seq_id = int(fp.readline())
+                fp.close()
+            except IOError:
+                log.exception('Exception reading sequence id file')
+        return seq_id
 
     def update_index(self, db_name):
-        """Process an update notification.
+        """Announce updates to a database
 
+        For messages announcing deleted documents, the type is 'deleted'
+        and data is a list of the ids of the deleted documents.
+
+        For updated documents, the type is 'updated'. FIXME: list
+        of lists of dictionaries should be made into a list of dictionaries.
+
+        :param db_name: Name of updated database
         """
         db = self.server[db_name]
         log.debug("Connected to database '%s'" % db_name)
-        try:
-            if not os.path.exists(self.seqid_file):
-                seq_id = 0
-            else:
-                fp = file(self.seqid_file)
-                seq_id = json.load(fp)
-        except Exception:
-            log.exception("Problem with sequence id file")
-            return
 
-        updated_docs, len_docs = self._next_in_sequence(db, seq_id)
-        while len_docs > 0:
-            log.debug("Processing %d updates" % len_docs)
-            seq_id = updated_docs.rows[len_docs - 1].key
+        seq_id = self.read_sequence_id()
+        for updated_docs, len_docs, new_seq_id in self.next_in_sequence(db, seq_id):
+            log.info("Processing %d update(s)" % len_docs)
+            seq_id = new_seq_id
 
             deleted_docs = [doc.id for doc in updated_docs
                             if doc.value.get('deleted', False)]
@@ -140,7 +169,7 @@ class UpdateAnnouncer(object):
 
             if deleted_docs:
                 deletes = {'type' : 'deleted', 'data' : deleted_docs}
-                self._announce_updates(json.dumps(deletes))
+                self._announce_updates(deletes)
 
             if updated_docs:
                 updates = []
@@ -150,17 +179,18 @@ class UpdateAnnouncer(object):
                         doc_updates.append({'_db' : db_name})
                         updates.append(doc_updates)
                 if updates:
-                    updates = {'type' : 'updated', 'data' : updates}
-                    self._announce_updates(json.dumps(updates))
-                else:
-                    log.info("No updates to announce")
-
-            updated_docs, len_docs = self._next_in_sequence(db, seq_id)
+                    self._announce_updates({'type' : 'updated', 'data' : updates})
 
         fp = file(self.seqid_file, 'w')
-        json.dump(seq_id, fp)
+        fp.write(str(seq_id))
         fp.close()
 
     def delete_database(self, db_name):
-        msg = {'type' : 'deleted_db', 'data' : db_name}
-        self._announce_updates(json.dumps(msg))
+        """Announce that database was deleted.
+
+        Message type is 'deleted_db' and data is the name of the deleted
+        database.
+
+        :param db_name: Name of deleted database
+        """
+        self._announce_updates({'type' : 'deleted_db', 'data' : db_name})

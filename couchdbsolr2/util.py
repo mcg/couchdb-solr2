@@ -6,10 +6,10 @@
 # http://www.opensource.org/licenses/mit-license.php
 # for details.
 
-import os
+import logging, os
 from ConfigParser import ConfigParser
 
-__all__ = ['read_config']
+__all__ = ['read_config', 'string2log_level']
 
 
 def read_config(config_file, defaults={}):
@@ -39,3 +39,14 @@ def read_config(config_file, defaults={}):
     for key in keys:
         defaults[key] = settings[key]
     return defaults
+
+
+def string2log_level(level):
+    levels = {
+        'debug' : logging.DEBUG,
+        'info' : logging.INFO,
+        'warning' : logging.WARNING,
+        'error' : logging.ERROR,
+        'critical' : logging.CRITICAL
+    }
+    return levels.get(level, logging.NOTSET)
