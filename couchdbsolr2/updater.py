@@ -66,6 +66,9 @@ class SolrUpdater(object):
                     log.debug("Deleting %s" % id)
                 solr.delete(id)
                 solr.commit()
+            elif updates['type'] == 'deleted_db':
+                solr.deleteByQuery("_db:%s" % updates['data'])
+                solr.commit()
             else:
                 log.warning("Unrecognized update type: '%s'" % updates['type'])
         except SolrException:

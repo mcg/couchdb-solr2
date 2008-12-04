@@ -124,7 +124,7 @@ class SolrConnection(object):
     xstr = '<delete><id>'+self.escapeVal(`id`)+'</id></delete>'
     return self.doUpdateXML(xstr)
 
-  def deleteByQyery(self, query):
+  def deleteByQuery(self, query):
     xstr = '<delete><query>'+self.escapeVal(query)+'</query></delete>'
     return self.doUpdateXML(xstr)
 

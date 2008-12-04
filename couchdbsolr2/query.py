@@ -34,10 +34,12 @@ def build_query(request):
         search = request['query']
         query = search['q']
 
+        fq = search.get('fq')
         doctype = search.get('type')
         count = search.get('count', 25)
         offset = search.get('offset', 0)
 
+        if 'fq' in search: del search['fq']
         if 'type' in search: del search['type']
         if 'count' in search: del search['count']
         if 'offset' in search: del search['offset']
@@ -51,6 +53,8 @@ def build_query(request):
         }
         if doctype is not None:
             params['fq'].append('type:%s' % doctype)
+        if fq is not None:
+            params['fq'].append(fq)
         params.update(search)
         return params
     except KeyError:

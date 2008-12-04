@@ -65,7 +65,7 @@ class UpdateAnnouncer(object):
         elif isinstance(obj, dict):
             self.__normalize_dict(updates, path, obj)
         else:
-            log.warning("No type matched: " + type(obj))
+            log.warning("No type matched: " + str(type(obj)))
 
     def __normalize_list(self, updates, path, obj):
         for i, elem in enumerate(obj):
@@ -162,4 +162,5 @@ class UpdateAnnouncer(object):
         fp.close()
 
     def delete_database(self, db_name):
-        log.error("Delete database not yet implemented")
+        msg = {'type' : 'deleted_db', 'data' : db_name}
+        self._announce_updates(json.dumps(msg))

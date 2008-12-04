@@ -13,8 +13,7 @@ Dependencies
 * CouchDB (with _external interface)
 * [CouchDB Python][couchdb-python]
 * [Solr 1.3.x][solr]
-
-AMQP broker
+* AMQP broker
 
 Installation
 ------------
@@ -38,10 +37,9 @@ will need to, at the least, uncomment the autoCommit section in
 
 Install an AMQP message broker. This code was tested with [RabbitMQ][rabbitmq].
 
-Ensure that you have setuptools and then install CouchDB-Solr2. This is best
-done using the command:
+Ensure that you have setuptools and then install CouchDB-Solr2.
 
-    # python setup.py develop
+    # python setup.py install
 
 There are two INI files in the distribution which configure the CouchDB-Solr2
 AMQP clients. Copy these to somewhere permanent and edit if necessary.
@@ -83,19 +81,16 @@ similar documents.
 A URI of the form `http://SERVER:5984/DATABASE/_external/fti` is used to
 access full-text search.
 
-The query parameters currently supported are
+The query interface supports arbitrary query parameters. This includes
+the [standard Solr query parameters][solr-parameters] and the following:
 
-1. `q`
-1. `fq`
-1. `fl`
-1. `type`
 1. `count`
 1. `offset`
+1. `type`
 
-`q`, `fq`, and `fl` are [standard Solr query parameters][solr-parameters]. `count` and `offset` are respectively equivalent
-to the `rows` and `start` Solr parameters. `type` is used to match the `type`
-CouchDB field described above. It is implemented as a filter query for
-efficiency.
+`count` and `offset` are respectively equivalent to the `rows` and `start` Solr
+parameters. `type` is used to match the `type` CouchDB field described above.
+It is implemented as a filter query for efficiency.
 
 An example CouchDB document:
 
@@ -122,13 +117,11 @@ Some example queries:
     http://127.0.0.1:5984/database/_external/fti?q=post/content:search&count=5
     http://127.0.0.1:5984/database/_external/fti?type=Post
 
-Thanks
-------
+Credits
+-------
 
-A nod to @janl for suggesting I take another look at couchdb-solr and
-couchdb-lucene when I started working on FTI. And, of course, many thanks
-to @davisp whose code served as inspiration (and a source for a little
-shameless stealing).
+Many of the concepts in [Paul Davis'][davisp] couchdb-lucene and couchdb-solr
+projects served as inspiration for CouchDB-Solr2.
 
 
 [setuptools]: http://peak.telecommunity.com/DevCenter/setuptools
@@ -136,3 +129,4 @@ shameless stealing).
 [solr]: http://lucene.apache.org/solr/
 [solr-parameters]: http://wiki.apache.org/solr/CommonQueryParameters
 [action2]: http://github.com/jchris/couchdb/tree/action2
+[davisp]: http://github.com/davisp
