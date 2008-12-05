@@ -21,15 +21,14 @@ def validate_amqp(amqp):
         and amqp.has_key('realm') and amqp.has_key('queue')
 
 
-def validate_solr(solr):
-    return solr and solr.has_key('host') and solr.has_key('port')
-
-
 def configure(config_file):
     defaults = {
         'log' : {
             'file' : 'couchdb-solr2-update.log',
             'level' : 'info'
+        },
+        'solr' : {
+            'uri' : 'http://127.0.0.1:8080/solr'
         }
     }
     config = read_config(config_file, defaults)
@@ -38,9 +37,6 @@ def configure(config_file):
         return
     if not validate_amqp(config.get('amqp')):
         print >> sys.stderr, 'AMQP configuration is invalid'
-        return
-    if not validate_solr(config.get('solr')):
-        print >> sys.stderr, 'Solr configuration is invalid'
         return
     return config
 
@@ -75,8 +71,7 @@ def main():
                         level=string2log_level(config['log']['level']),
                         format=log_format)
 
-    updater = SolrUpdater(config['amqp'],
-                          '%s:%s' % (config['solr']['host'], config['solr']['port']))
+    updater = SolrUpdater(config['amqp'], config['solr']['uri'])
     if updater.start_amqp() is False:
         print >> sys.stderr, "Problem connecting to AMQP broker"
         return 2

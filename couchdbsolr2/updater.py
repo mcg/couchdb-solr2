@@ -6,9 +6,11 @@
 # http://www.opensource.org/licenses/mit-license.php
 # for details.
 
+# TODO: Associate SolrConnection with worker threads if possible
+
 import logging, socket, threadpool, time
 import amqplib.client_0_8 as amqp
-from solr import SolrConnection, SolrException
+from solr import SolrConnection
 
 try:
     import simplejson as json
@@ -63,12 +65,11 @@ class SolrUpdater(object):
                             SolrUpdater.xml_field(doc, solr.escapeKey(k),
                                                   solr.escapeVal(v))
                 log.debug("Sending update to Solr: " + ET.tostring(add))
-                resp = solr.doUpdateXML(ET.tostring(add))
-                log.debug("Solr response: " + resp)
+                solr.doUpdateXML(ET.tostring(add))
             elif updates['type'] == 'deleted':
                 for id in updates['data']:
                     log.debug("Deleting document with id '%s'" % id)
-                solr.delete(id)
+                    solr.delete(id)
                 solr.commit()
             elif updates['type'] == 'deleted_db':
                 db_name = updates['data']
@@ -77,8 +78,6 @@ class SolrUpdater(object):
                 solr.commit()
             else:
                 log.warning("Unrecognized update type: '%s'" % updates['type'])
-        except SolrException:
-            log.exception("Exception when contacting Solr")
         except Exception:
             log.exception("Unexpected exception")
 
@@ -128,7 +127,5 @@ class SolrUpdater(object):
         return True
 
     def shutdown(self):
-        if self.pool is not None:
-            self.pool.dismissWorkers(self.workers, True)
         self.channel.close()
         self.conn.close()
