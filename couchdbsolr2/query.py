@@ -34,28 +34,27 @@ def build_query(request):
         search = request['query']
         query = search['q']
 
-        fq = search.get('fq')
         doctype = search.get('type')
         count = search.get('count', 25)
         offset = search.get('offset', 0)
 
-        if 'fq' in search: del search['fq']
         if 'type' in search: del search['type']
         if 'count' in search: del search['count']
         if 'offset' in search: del search['offset']
 
+        queries = ['_db:%s' % db_name]
+        if doctype is not None:
+            queries.append('type:%s' % doctype)
+        queries.append(query)
+
         params = {
-            'fq' : ['_db:%s' % db_name],
-            'q' : query,
+            'q' : ' AND '.join(queries),
             'rows' : count,
             'start' : offset,
             'wt' : 'json',
         }
-        if doctype is not None:
-            params['fq'].append('type:%s' % doctype)
-        if fq is not None:
-            params['fq'].append(fq)
-        params.update(search)
+        for key in [key for key in search.keys() if key not in params]:
+            params[key] = search[key]
         return params
     except KeyError:
         log.exception("Missing expected parameter")
@@ -68,8 +67,8 @@ def parse_opts():
                       metavar='FILE', default='couchdb-solr2-query.log',
                       help='Write log to FILE (default: %default)')
     parser.add_option('-s', '--solr', dest='solr_uri',
-                      metavar='IF', default='127.0.0.1:8080',
-                      help='Solr interface (default: %default)')
+                      metavar='URI', default='http://127.0.0.1:8080/solr',
+                      help='Solr URI (default: %default)')
     return parser.parse_args()
 
 
@@ -86,7 +85,7 @@ def main():
             if query is None:
                 protocol.output(query_failed(), True)
                 continue
-            log.debug("Query parameters:" + str(query))
+            log.debug("Running query: " + str(query))
             resp = json.loads(solr.search(**query))
             ret = {
                 'code' : 200,

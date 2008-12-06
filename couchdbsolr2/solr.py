@@ -128,5 +128,5 @@ class SolrConnection(object):
 
   def search(self, **params):
     request=urllib.urlencode(params, doseq=True)
-    response, content = self.doPost(self.uri + '/select', request, self.formheaders)
+    content = self.doPost(self.uri + '/select', request, self.formheaders)
     return content
