@@ -2,32 +2,34 @@ CouchDB-Solr2
 =============
 
 CouchDB-Solr2 provides a distributed architecture for full-text indexing and
-searching with CouchDB. Update notifications from CouchDB are sent to
-an AMQP exchange. An intermediary server then listens on that exchange for
-incoming AMQP messages and directly alerts Solr of the changes.
+searching within CouchDB. Update notifications from CouchDB are initially sent
+to an AMQP exchange. An intermediary server then listens on that exchange for
+incoming AMQP messages and alerts Solr of the updates.
 
 Dependencies
 ------------
 
 * [setuptools][setuptools]
-* CouchDB (with _external interface)
+* [CouchDB][couchdb]
 * [CouchDB Python][couchdb-python]
 * [Solr 1.3.x][solr]
-* AMQP broker
+* AMQP broker (e.g. [RabbitMQ][rabbitmq])
 
 Installation
 ------------
 
-The entire installation process is not going to be covered here so a
-general outline will have to suffice.
+Details of the installation of all dependencies is not going to be covered
+here, so hopefully a general outline will suffice.
 
-First install a version of CouchDB with the _external interface.
-This code was tested using @jchris's [Action2 branch][action2].
+First install a version of CouchDB which supports external processes. As of
+r727136 external support is in the official Subversion trunk.
 
 [Install Solr](http://wiki.apache.org/solr/SolrInstall), then copy the
 `schema.xml` file from this distribution to the `conf` directory in your Solr
-home. CouchDB-Solr2 only makes Solr commits when a document is deleted. You
-will need to, at the least, uncomment the autoCommit section in
+home.
+
+CouchDB-Solr2 only makes Solr commits when a document or database is deleted.
+You will need to, at the least, uncomment the autoCommit section in
 `solrconfig.xml`. For example:
 
     <autoCommit> 
@@ -35,14 +37,14 @@ will need to, at the least, uncomment the autoCommit section in
         <maxTime>30000</maxTime> 
     </autoCommit>
 
-Install an AMQP message broker. This code was tested with [RabbitMQ][rabbitmq].
+It should also be noted that CouchDB-Solr2 currently makes no attempt to
+optimize the Solr index.
+
+Next, install an AMQP message broker. CouchDB-Solr2 is tested with RabbitMQ.
 
 Ensure that you have setuptools and then install CouchDB-Solr2.
 
     # python setup.py install
-
-There are two INI files in the distribution which configure the CouchDB-Solr2
-AMQP clients. Copy these to somewhere permanent and edit if necessary.
 
 CouchDB-Solr2 has three commands:
 
@@ -52,19 +54,29 @@ CouchDB-Solr2 has three commands:
 
 Observe where these are installed by the setup script.
 
+There are two INI files in the distribution which are intended for use with
+`couchdb-solr2-index` and `couchdb-solr2-update`. Copy these to a more
+permanent location and edit if necessary.
+
 Edit the `etc/couchdb/local.ini` file in your CouchDB install directory. Add
 the following lines:
 
     [update_notification]
-    solr_indexer=/path/to/couchdb-solr2-index -a /path/to/couchdb-solr2-index.ini
+    solr_indexer=/path/to/couchdb-solr2-index -c /path/to/couchdb-solr2-index.ini
 
     [external]
     fti={"/path/to/couchdb-solr2-query", 1}
 
-Start your servlet container and AMQP broker if you haven't already and then
-CouchDB. Finally run `couchdb-solr2-update`:
+You can find additional options to these two commands by running them with
+the `--help` option.
 
-    # /path/to/couchdb-solr2-update -a /path/to/couchdb-solr2-update.ini
+Then start your servlet container and AMQP broker if you haven't already.
+After that start CouchDB. Finally you will run `couchdb-solr2-update`. E.g:
+
+    # /path/to/couchdb-solr2-update -c /path/to/couchdb-solr2-update.ini
+
+For convenience, there is a Debian init script in the `init.d` directory
+for `couchdb-solr2-update`.
 
 Usage
 -----
@@ -81,8 +93,9 @@ similar documents.
 A URI of the form `http://SERVER:5984/DATABASE/_external/fti` is used to
 access full-text search.
 
-The query interface supports arbitrary query parameters. This includes
-the [standard Solr query parameters][solr-parameters] and the following:
+The query interface supports arbitrary query parameters. There is built-in
+support for the [standard Solr query parameters][solr-parameters] and the
+following:
 
 1. `count`
 1. `offset`
@@ -90,9 +103,12 @@ the [standard Solr query parameters][solr-parameters] and the following:
 
 `count` and `offset` are respectively equivalent to the `rows` and `start` Solr
 parameters. `type` is used to match the `type` CouchDB field described above.
-It is implemented as a filter query for efficiency.
 
-An example CouchDB document:
+Arbitrary query parameter support allows for a number of fascinating
+possibilities. For example, the author has combined CouchDB-Solr2 with
+[LocalSolr][localsolr] to bring geographical searching capabilities to CouchDB.
+
+Let's take a look at an example CouchDB document:
 
     {
         "_id": "uniqueid",
@@ -107,9 +123,11 @@ An example CouchDB document:
 
 When this document is updated, the `post` field is recursively processed
 by CouchDB-Solr2. Two Solr fields are dynamically generated:
-`post/title` and `post/content`. For every document indexed, a default field
-called `_text` is available. `_text` allows searching on all CouchDB document
-fields that were indexed.
+`post/title` and `post/content`.
+
+By default (configured in `schema.xml`) a default field called `_text` is
+available for every indexed document. `_text` allows searching on all CouchDB
+document fields that were made searchable.
 
 Some example queries:
 
@@ -125,8 +143,10 @@ projects served as inspiration for CouchDB-Solr2.
 
 
 [setuptools]: http://peak.telecommunity.com/DevCenter/setuptools
+[couchdb]: http://couchdb.apache.org/
 [couchdb-python]: http://code.google.com/p/couchdb-python/
 [solr]: http://lucene.apache.org/solr/
+[rabbitmq]: http://www.rabbitmq.com/
 [solr-parameters]: http://wiki.apache.org/solr/CommonQueryParameters
-[action2]: http://github.com/jchris/couchdb/tree/action2
+[localsolr]: http://sourceforge.net/projects/locallucene/
 [davisp]: http://github.com/davisp
