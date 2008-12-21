@@ -1,5 +1,5 @@
-* Remove dependency on setuptools
 * Support for facets
 * Use worker threads in couchdb-solr2-index to process individual updates.
 * Improve data structure used to communicate updated documents.
 * Optional caching of search query results
+* Create branch using Protocol Buffers for serialization

@@ -21,8 +21,10 @@ Installation
 Details of the installation of all dependencies is not going to be covered
 here, so hopefully a general outline will suffice.
 
-First install a version of CouchDB which supports external processes. As of
-r727136 external support is in the official Subversion trunk.
+CouchDB-Solr2 requires Python 2.5.x or greater.
+
+CouchDB-Solr2 requires r727136 or newer of CouchDB (which has support for
+external processes).
 
 [Install Solr](http://wiki.apache.org/solr/SolrInstall), then copy the
 `schema.xml` file from this distribution to the `conf` directory in your Solr
@@ -62,10 +64,14 @@ Edit the `etc/couchdb/local.ini` file in your CouchDB install directory. Add
 the following lines:
 
     [update_notification]
-    solr_indexer=/path/to/couchdb-solr2-index -c /path/to/couchdb-solr2-index.ini
+    solr_indexer = /path/to/couchdb-solr2-index -c /path/to/couchdb-solr2-index.ini
 
     [external]
-    fti={"/path/to/couchdb-solr2-query", 1}
+    fti = /path/to/couchdb-solr2-query
+
+    [httpd_db_handlers]
+    _external = {couch_httpd_external, handle_external_req}
+
 
 You can find additional options to these two commands by running them with
 the `--help` option.

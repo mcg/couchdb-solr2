@@ -30,7 +30,7 @@ def query_failed():
 
 def build_query(request):
     try:
-        db_name = request['db']
+        db_name = request['info']['db_name']
         search = request['query']
         query = search['q']
 
