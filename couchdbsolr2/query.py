@@ -30,7 +30,7 @@ def query_failed():
 
 def build_query(request):
     try:
-        db_name = request['info']['db_name']
+        db_name = request['db']
         search = request['query']
         query = search['q']
 
@@ -86,7 +86,11 @@ def main():
                 protocol.output(query_failed(), True)
                 continue
             log.debug("Running query: " + str(query))
-            resp = json.loads(solr.search(**query))
+            results = solr.search(**query)
+            if results is None:
+                protocol.output({'code' : 400})
+                continue
+            resp = json.loads(results)
             ret = {
                 'code' : 200,
                 'json' : resp['response']

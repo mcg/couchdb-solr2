@@ -132,10 +132,11 @@ class UpdateAnnouncer(object):
             log.exception('Problem connecting to database')
 
     def read_sequence_ids(self):
-        try:
-            return json.load(file(self.seqid_file))
-        except Exception:
-            log.exception('Error reading sequence id file')
+        if os.path.fexists(self.seqid_file):
+            try:
+                return json.load(file(self.seqid_file))
+            except Exception:
+                log.exception('Error reading sequence id file')
         return {}
 
     def write_sequence_ids(self, seqids):
