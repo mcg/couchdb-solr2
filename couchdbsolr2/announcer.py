@@ -55,9 +55,9 @@ class UpdateAnnouncer(object):
         """
         try:
             self.conn = amqp.Connection(self.amqp['host'], self.amqp['user'],
-                                        self.amqp['password'])
+                                        self.amqp['password'],
+                                        virtual_host=self.amqp['vhost'])
             self.channel = self.conn.channel()
-            self.channel.access_request(self.amqp['realm'], write=True, active=True)
             self.channel.exchange_declare(self.amqp['routing_key'], 'fanout')
         except socket.error:
             return False

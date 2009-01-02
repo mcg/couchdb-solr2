@@ -115,10 +115,9 @@ class SolrUpdater(object):
         try:
             self.conn = amqp.Connection(self.amqp['host'],
                                         self.amqp['user'],
-                                        self.amqp['password'])
+                                        self.amqp['password'],
+                                        virtual_host=self.amqp['vhost'])
             self.channel = self.conn.channel()
-            self.channel.access_request(self.amqp['realm'],
-                                        read=True, active=True)
             self.channel.exchange_declare(self.amqp['routing_key'], 'fanout')
             self.channel.queue_declare(self.amqp['queue'])
             self.channel.queue_bind(self.amqp['queue'], self.amqp['routing_key'])
