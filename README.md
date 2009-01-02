@@ -18,6 +18,11 @@ Dependencies
 Installation
 ------------
 
+Note: Documentation is a little messy. Last I checked the external handling
+code in the CouchDB trunk was broken, so I reverted to the interface used
+by jchris' action2 branch. This project probably won't see many more updates
+as I am transitioning away from CouchDB.
+ 
 Details of the installation of all dependencies is not going to be covered
 here, so hopefully a general outline will suffice.
 
