@@ -44,7 +44,7 @@ def eval_loop(updater):
 def validate_amqp(amqp):
     return amqp and amqp.has_key('host') and amqp.has_key('user') \
         and amqp.has_key('password') and amqp.has_key('routing_key') \
-        and amqp.has_key('realm')
+        and amqp.has_key('vhost')
 
 
 def configure(config_file):

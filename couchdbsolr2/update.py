@@ -18,7 +18,7 @@ from version import version
 def validate_amqp(amqp):
     return amqp and amqp.has_key('host') and amqp.has_key('user') \
         and amqp.has_key('password') and amqp.has_key('routing_key') \
-        and amqp.has_key('realm') and amqp.has_key('queue')
+        and amqp.has_key('vhost') and amqp.has_key('queue')
 
 
 def configure(config_file):

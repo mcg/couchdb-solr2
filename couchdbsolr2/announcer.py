@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+#/ -*- coding: utf-8 -*-
 #
 # Copyright (c) 2008 Jacinto Ximénez de Guzmán
 #
@@ -73,7 +73,7 @@ class UpdateAnnouncer(object):
     def __normalize(self, updates, path, obj):
         if obj is None:
             pass
-        elif isinstance(obj, str) or isinstance(obj, int) or isinstance(obj, float):
+        elif isinstance(obj, str) or isinstance(obj, int) or isinstance(obj, float) or isinstance(obj, long) or isinstance(obj, unicode):
             updates.append({path : obj})
         elif isinstance(obj, list):
             self.__normalize_list(updates, path, obj)
@@ -107,6 +107,7 @@ class UpdateAnnouncer(object):
             log.warning("Unable to find document in database: '%s'" % doc_id)
             return
         fields = doc.get('solr_fields')
+        fields = ["payload", "timesaved"]
         if not fields:
             log.debug("Document '%s' does not define solr_fields" % doc_id)
             return
@@ -114,25 +115,25 @@ class UpdateAnnouncer(object):
         for field in fields:
             if doc.has_key(field):
                 self.__normalize(updates, field, doc[field])
-        updates.extend([{'type' : doc[TYPE_ATTR]}, {'_id' : doc_id}])
+        updates.extend([{'type' : 'any'}, {'_id' : doc_id}])
         return updates
 
     def next_in_sequence(self, db, seq_id):
         try:
             updated_docs = db.view('_all_docs_by_seq', startkey=seq_id,
-                                   count=self.batch_size)
+                                   limit=self.batch_size)
             len_docs = len(updated_docs)
             while len_docs > 0:
                 seq_id = updated_docs.rows[len_docs - 1].key
                 yield (updated_docs, len_docs, seq_id)
                 updated_docs = db.view('_all_docs_by_seq', startkey=seq_id,
-                                       count=self.batch_size)
+                                       limit=self.batch_size)
                 len_docs = len(updated_docs)
         except socket.error:
             log.exception('Problem connecting to database')
 
     def read_sequence_ids(self):
-        if os.path.fexists(self.seqid_file):
+        if os.path.exists(self.seqid_file):
             try:
                 return json.load(file(self.seqid_file))
             except Exception:
